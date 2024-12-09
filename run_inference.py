@@ -14,6 +14,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--datadir', type=str, required=True, help='Path of your directory of wav files')
+    parser.add_argument('--outfile', type=str, required=False, default='answer.txt', help='Output filename of the result')
     args = parser.parse_args()
     DATADIR = args.datadir
 
@@ -33,6 +34,6 @@ def main():
         os.system('cp fairseq/LICENSE pretrained/')
 
     ## 3. run inference
-    os.system('python predict_noGT.py --fairseq_base_model fairseq/wav2vec_small.pt --outfile answer.txt --finetuned_checkpoint pretrained/ckpt_w2vsmall --datadir ' + DATADIR)
+    os.system('python predict_noGT.py --fairseq_base_model fairseq/wav2vec_small.pt --outfile answer.txt --finetuned_checkpoint pretrained/ckpt_w2vsmall --datadir ' + DATADIR + ' --outfile ' + args.outfile)
 
 main()

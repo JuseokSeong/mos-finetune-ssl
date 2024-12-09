@@ -13,11 +13,18 @@ import torch
 import torch.nn as nn
 import fairseq
 from torch.utils.data import DataLoader
-from mos_fairseq import MosPredictor, MyDataset
+from mos_fairseq import MosPredictor #, MyDataset
 import numpy as np
 import scipy.stats
 import datetime
 import time
+
+import glob
+import librosa
+
+import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
 
 def unixnow():
     return str(int(time.mktime(datetime.datetime.now().timetuple())))
@@ -58,46 +65,23 @@ def main():
 
     model = MosPredictor(ssl_model, SSL_OUT_DIM).to(device)
     model.eval()
-
-    model.load_state_dict(torch.load(my_checkpoint))
-
-    wavfnames = [x for x in os.listdir(wavdir) if x.split('.')[-1] == 'wav']
-    wavlist = 'tmp_' + unixnow() + '.txt'
-    wavlistf = open(wavlist, 'w')
-    for w in wavfnames:
-        wavlistf.write(w + ',3.0\n')
-    wavlistf.close()
-
-    print('Loading data')
-    validset = MyDataset(wavdir, wavlist)
-    validloader = DataLoader(validset, batch_size=1, shuffle=True, num_workers=2, collate_fn=validset.collate_fn)
-
-    total_loss = 0.0
-    num_steps = 0.0
-    predictions = { }  # filename : prediction
-    criterion = nn.L1Loss()
-    print('Starting prediction')
-
-    for i, data in enumerate(validloader, 0):
-        inputs, labels, filenames = data
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-        outputs = model(inputs)
-        loss = criterion(outputs, labels)
-        total_loss += loss.item()
-        
-        output = outputs.cpu().detach().numpy()[0]
-        predictions[filenames[0]] = output  ## batch size = 1
-
-
-    ## generate answer.txt for codalab
+    model.load_state_dict(torch.load(my_checkpoint, map_location=device))
+    
     ans = open(outfile, 'w')
-    for k, v in predictions.items():
-        outl = k.split('.')[0] + ',' + str(v) + '\n'
-        ans.write(outl)
-    ans.close()
+    with open(wavdir, 'r') as f:
+        for l in f:
+            items = l.strip().split()
+            wav_id = items[0]
+            fname = items[1]
+            waveform = librosa.load(fname, sr=16000)[0]
 
-    os.system('rm ' + wavlistf)
+            # inputs, labels, filenames = data
+            inputs = torch.tensor(waveform).unsqueeze(0).to(device)
+            outputs = model(inputs)
+            
+            output = outputs.cpu().detach().numpy()[0]
+            ans.write(wav_id + " " + str(output) + "\n")
+    ans.close()
 
 if __name__ == '__main__':
     main()
